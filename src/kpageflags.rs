@@ -13,6 +13,8 @@ pub use flags::{
 };
 pub use read::{KPageFlagsIterator, KPageFlagsReader};
 
+use crate::FileReadable;
+
 /// The file path... `/proc/kpageflags`.
 pub const KPAGEFLAGS_PATH: &str = "/proc/kpageflags";
 
@@ -20,8 +22,6 @@ pub const KPAGEFLAGS_PATH: &str = "/proc/kpageflags";
 #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct KPageFlags<K: Flaggy>(u64, PhantomData<K>);
-
-const KPF_SIZE: usize = std::mem::size_of::<u64>();
 
 impl<K: Flaggy> KPageFlags<K> {
     /// Returns an empty set of flags.
@@ -64,6 +64,8 @@ impl<K: Flaggy> KPageFlags<K> {
         self.0
     }
 }
+
+unsafe impl<K: Flaggy> FileReadable for KPageFlags<K> {}
 
 impl<K: Flaggy> BitOr for KPageFlags<K> {
     type Output = Self;
