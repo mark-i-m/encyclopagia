@@ -8,13 +8,36 @@ use std::{
 
 use crate::{FileReadable, FileReadableReader};
 
+/// All the different pagemap implementations are `PageMappy`.
+pub trait PageMappy:
+    Sized + FromStr + Copy + std::fmt::Debug + std::hash::Hash + Ord + Eq + Into<u64> + From<u64>
+{
+    const PRESENT: Self;
+    const SWAPPED: Self;
+    const FILE_OR_SHM: Self;
+    const EXCLUSIVE: Option<Self>;
+    const SOFT_DIRTY: Option<Self>;
+
+    fn valid(val: u64) -> bool;
+    fn values() -> &'static [u64];
+
+    fn valid_mask() -> u64 {
+        let mut v = 0;
+        for b in Self::values() {
+            v |= 1 << b;
+        }
+        v
+    }
+
+    /// Returns a mask for the location information of the page.
+    fn location_mask() -> u64;
+}
+
 /// Represents the flags for a single virtual page in the address space of a process as given by
 /// that process's pagemap.
 #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct PageMapPage<K: PageMappy>(u64, PhantomData<K>);
-
-pub const KPF_SIZE: usize = std::mem::size_of::<u64>();
 
 impl<K: PageMappy> PageMapPage<K> {
     /// Returns an empty set of flags.
@@ -28,8 +51,8 @@ impl<K: PageMappy> PageMapPage<K> {
     }
 
     /// Returns `true` if the given KPF bit is set; `false` otherwise.
-    pub fn has(&self, kpf: K) -> bool {
-        self.all(1 << kpf.into())
+    pub fn has(&self, flag: K) -> bool {
+        self.all(1 << flag.into())
     }
 
     /// Clear all bits set in the `mask` from this `PageMapPage`.
@@ -39,6 +62,12 @@ impl<K: PageMappy> PageMapPage<K> {
 
     pub fn as_u64(self) -> u64 {
         self.0
+    }
+
+    pub fn location(self) -> u64 {
+        let mask = K::location_mask();
+        let shift = mask.trailing_zeros();
+        (self.0 & mask) >> shift
     }
 }
 
@@ -81,27 +110,7 @@ impl<K: PageMappy> std::fmt::Display for PageMapPage<K> {
     }
 }
 
-/// All the different pagemap implementations are `PageMappy`.
-pub trait PageMappy:
-    Sized + FromStr + Copy + std::fmt::Debug + std::hash::Hash + Ord + Eq + Into<u64> + From<u64>
-{
-    const PRESENT: Self;
-    const SWAPPED: Self;
-    const FILE_OR_SHM: Self;
-    const EXCLUSIVE: Option<Self>;
-    const SOFT_DIRTY: Option<Self>;
-
-    fn valid(val: u64) -> bool;
-    fn values() -> &'static [u64];
-
-    fn valid_mask() -> u64 {
-        let mut v = 0;
-        for b in Self::values() {
-            v |= 1 << b;
-        }
-        v
-    }
-}
-
 /// Wrapper around a `Read` type that for the `/proc/[pid]/pagemap` file.
 pub type PageMapReader<R, K> = FileReadableReader<R, PageMapPage<K>>;
+
+// TODO: implement PageMappy for a few kernels...
