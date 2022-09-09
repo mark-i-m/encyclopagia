@@ -90,7 +90,15 @@ impl<R: Read, T: FileReadable> FileReadableReader<R, T> {
             }
         }
 
-        assert_eq!(total_bytes_read % size, 0);
+        // Error: maybe the file was gzipped? Check for the sake of error reporting.
+        if total_bytes_read % size != 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Total number of bytes read is not a multiple of struct size. \
+                 Perhaps the data is compressed?",
+            ));
+        }
+
         Ok(total_bytes_read / size)
     }
 }
