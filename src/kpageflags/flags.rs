@@ -97,10 +97,8 @@ macro_rules! kpf {
                 }
 
                 fn valid(val: u64) -> bool {
-                    match val {
-                        $($val => true,)*
-                        _ => false,
-                    }
+                    $( if val == (1 << $val) { return true ; } )*
+                    false
                 }
 
                 fn values() -> &'static [Self] {
