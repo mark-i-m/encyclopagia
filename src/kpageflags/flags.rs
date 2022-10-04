@@ -18,6 +18,8 @@ pub trait Flaggy:
     const LRU: Self;
     const ANON: Self;
     const THP: Self;
+    const PRIVATE: Self;
+    const PRIVATE2: Self;
 
     fn valid(val: u64) -> bool;
     fn values() -> &'static [u64];
@@ -153,6 +155,8 @@ kpf! {
     LRU: Self = KPF3_10_0::Lru;
     ANON: Self = KPF3_10_0::Anon;
     THP: Self = KPF3_10_0::Thp;
+    PRIVATE: Self = KPF3_10_0::Private;
+    PRIVATE2: Self = KPF3_10_0::Private2;
 }
 
 // kpageflags for kernel 4.15.0
@@ -216,6 +220,8 @@ kpf! {
     LRU: Self = KPF4_15_0::Lru;
     ANON: Self = KPF4_15_0::Anon;
     THP: Self = KPF4_15_0::Thp;
+    PRIVATE: Self = KPF4_15_0::Private;
+    PRIVATE2: Self = KPF4_15_0::Private2;
 }
 
 // kpageflags for kernel 5.0.8
@@ -280,6 +286,8 @@ kpf! {
     LRU: Self = KPF5_0_8::Lru;
     ANON: Self = KPF5_0_8::Anon;
     THP: Self = KPF5_0_8::Thp;
+    PRIVATE: Self = KPF5_0_8::Private;
+    PRIVATE2: Self = KPF5_0_8::Private2;
 }
 
 // kpageflags for kernel 5.4.0
@@ -344,6 +352,8 @@ kpf! {
     LRU: Self = KPF5_4_0::Lru;
     ANON: Self = KPF5_4_0::Anon;
     THP: Self = KPF5_4_0::Thp;
+    PRIVATE: Self = KPF5_4_0::Private;
+    PRIVATE2: Self = KPF5_4_0::Private2;
 }
 
 // kpageflags for kernel 5.13.0
@@ -409,6 +419,8 @@ kpf! {
     LRU: Self = KPF5_13_0::Lru;
     ANON: Self = KPF5_13_0::Anon;
     THP: Self = KPF5_13_0::Thp;
+    PRIVATE: Self = KPF5_13_0::Private;
+    PRIVATE2: Self = KPF5_13_0::Private2;
 }
 
 // kpageflags for kernel 5.15.0
@@ -474,6 +486,8 @@ kpf! {
     LRU: Self = KPF5_15_0::Lru;
     ANON: Self = KPF5_15_0::Anon;
     THP: Self = KPF5_15_0::Thp;
+    PRIVATE: Self = KPF5_15_0::Private;
+    PRIVATE2: Self = KPF5_15_0::Private2;
 }
 
 // kpageflags for kernel 5.17.0
@@ -539,4 +553,6 @@ kpf! {
     LRU: Self = KPF5_17_0::Lru;
     ANON: Self = KPF5_17_0::Anon;
     THP: Self = KPF5_17_0::Thp;
+    PRIVATE: Self = KPF5_17_0::Private;
+    PRIVATE2: Self = KPF5_17_0::Private2;
 }
