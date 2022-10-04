@@ -3,10 +3,7 @@
 mod flags;
 mod read;
 
-use std::{
-    marker::PhantomData,
-    ops::{BitOr, BitOrAssign},
-};
+use std::ops::{BitOr, BitOrAssign};
 
 pub use flags::{
     Flaggy, KPF3_10_0, KPF4_15_0, KPF5_0_8, KPF5_13_0, KPF5_15_0, KPF5_17_0, KPF5_4_0,
@@ -21,22 +18,22 @@ pub const KPAGEFLAGS_PATH: &str = "/proc/kpageflags";
 /// Represents the flags for a single physical page frame.
 #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct KPageFlags<K: Flaggy>(u64, PhantomData<K>);
+pub struct KPageFlags<K: Flaggy>(K);
 
 impl<K: Flaggy> KPageFlags<K> {
     /// Returns an empty set of flags.
     pub fn empty() -> Self {
-        KPageFlags(0, PhantomData)
+        KPageFlags(K::from(0))
     }
 
     /// Returns `true` if all bits in the given mask are set and `false` if any bits are not set.
-    pub fn all(&self, mask: u64) -> bool {
+    pub fn all(&self, mask: K) -> bool {
         self.0 & mask == mask
     }
 
-    /// Returns `true` if the given KPF bit is set; `false` otherwise.
-    pub fn has(&self, kpf: K) -> bool {
-        self.all(1 << kpf.into())
+    /// Returns `true` if any bits in the given mask are set and `false` if all bits are not set.
+    pub fn any(&self, mask: K) -> bool {
+        self.0 & mask == mask
     }
 
     /// Returns `true` if _consecutive_ regions with flags `first` and then `second` can be
@@ -48,7 +45,7 @@ impl<K: Flaggy> KPageFlags<K> {
         }
 
         // Combine compound head and compound tail pages.
-        if first.has(K::COMPOUND_HEAD) && second.has(K::COMPOUND_TAIL) {
+        if first.all(K::COMPOUND_HEAD) && second.all(K::COMPOUND_TAIL) {
             return true;
         }
 
@@ -56,12 +53,12 @@ impl<K: Flaggy> KPageFlags<K> {
     }
 
     /// Clear all bits set in the `mask` from this `KPageFlags`.
-    pub fn clear(&mut self, mask: u64) {
+    pub fn clear(&mut self, mask: K) {
         self.0 &= !mask;
     }
 
     pub fn as_u64(self) -> u64 {
-        self.0
+        self.0.into()
     }
 }
 
@@ -71,7 +68,7 @@ impl<K: Flaggy> BitOr for KPageFlags<K> {
     type Output = Self;
 
     fn bitor(self, rhs: Self) -> Self::Output {
-        KPageFlags(self.0 | rhs.0, PhantomData)
+        KPageFlags(self.0 | rhs.0)
     }
 }
 
@@ -83,20 +80,20 @@ impl<K: Flaggy> BitOrAssign for KPageFlags<K> {
 
 impl<K: Flaggy> From<K> for KPageFlags<K> {
     fn from(kpf: K) -> Self {
-        KPageFlags(1 << kpf.into(), PhantomData)
+        KPageFlags(kpf)
     }
 }
 
 impl<K: Flaggy> std::fmt::Display for KPageFlags<K> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for fi in K::values() {
-            if self.all(1 << fi) {
-                write!(f, "{:?} ", K::from(*fi))?;
+            if self.all(*fi) {
+                write!(f, "{:?} ", *fi)?;
             }
         }
 
         let invalid_bits = self.0 & !K::valid_mask();
-        if invalid_bits != 0 {
+        if invalid_bits != K::empty() {
             write!(f, "INVALID BITS: {invalid_bits:X?}")?;
         }
 

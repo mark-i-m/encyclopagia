@@ -34,8 +34,8 @@ impl<R: Read, K: Flaggy> KPageFlagsIterator<R, K> {
             ignored_flags: {
                 let mut mask: u64 = 0;
 
-                for f in ignored_flags.into_iter() {
-                    mask |= 1 << (*f).into();
+                for f in ignored_flags {
+                    mask |= <K as Into<u64>>::into(*f);
                 }
 
                 mask
@@ -66,7 +66,7 @@ impl<R: Read, K: Flaggy> Iterator for KPageFlagsIterator<R, K> {
         // Return the first valid flags.
         let mut item = self.buf[self.idx];
 
-        item.clear(self.ignored_flags);
+        item.clear(self.ignored_flags.into());
 
         self.nflags -= 1;
         self.idx += 1;

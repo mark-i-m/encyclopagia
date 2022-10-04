@@ -1,10 +1,29 @@
 //! Machinery for interpretting kpageflags on a few different kernels.
 
-use std::str::FromStr;
+use std::{
+    ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not},
+    str::FromStr,
+};
 
 /// All the different KPF implementations are `Flaggy`.
 pub trait Flaggy:
-    Sized + FromStr + Copy + std::fmt::Debug + std::hash::Hash + Ord + Eq + Into<u64> + From<u64>
+    Sized
+    + FromStr
+    + Copy
+    + std::fmt::Debug
+    + std::hash::Hash
+    + Ord
+    + Eq
+    + Into<u64>
+    + From<u64>
+    + BitOr<Output = Self>
+    + BitOrAssign
+    + BitAnd<Output = Self>
+    + BitAndAssign
+    + BitXor<Output = Self>
+    + BitXorAssign
+    + Not<Output = Self>
+    + 'static
 {
     // Some flags that should be present in all kernel versions.
     const NOPAGE: Self;
@@ -20,77 +39,132 @@ pub trait Flaggy:
     const THP: Self;
     const PRIVATE: Self;
     const PRIVATE2: Self;
+    const OWNERPRIVATE1: Self;
 
+    fn empty() -> Self;
     fn valid(val: u64) -> bool;
-    fn values() -> &'static [u64];
+    fn values() -> &'static [Self];
 
-    fn valid_mask() -> u64 {
-        let mut v = 0;
-        for b in Self::values() {
-            v |= 1 << b;
-        }
-        v
+    fn valid_mask() -> Self {
+        Self::values().iter().fold(Self::empty(), |a, b| a | *b)
     }
 }
 
 /// Easier to derive `Flaggy` and a bunch of other stuff...
 macro_rules! kpf {
-    (pub enum $kpfname:ident { $($name:ident = $val:literal),+ $(,)? } $($c:ident: $t:ty = $v:expr;)+) => {
-        // It's not actually dead code... the `KPF::from` function allows constructing all of them...
-        #[allow(dead_code)]
-        #[derive(Copy, Clone, Debug, Hash, PartialEq, PartialOrd, Eq, Ord)]
-        #[repr(u64)]
-        pub enum $kpfname {
-            $($name = $val),+
-        }
-
-        impl $kpfname {
-            const _SIZE_CHECK: () = if std::mem::size_of::<u64>() != std::mem::size_of::<$kpfname>() {
-                panic!("KPF size > sizeof(u64)");
-            } else {
-                ()
+    ($kpfname:ident { $($name:ident = $val:literal),+ $(,)? } $($c:ident: $t:ty = $v:expr;)+) => {
+        #[allow(non_snake_case)]
+        pub mod $kpfname {
+            use std::{
+                ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not},
+                str::FromStr,
             };
-        }
+            use crate::kpageflags::Flaggy;
 
-        impl FromStr for $kpfname {
-            type Err = String;
+            #[allow(dead_code)]
+            #[derive(Copy, Clone, Debug, Hash, PartialEq, PartialOrd, Eq, Ord)]
+            #[repr(transparent)]
+            pub struct Flags (u64);
 
-            fn from_str(s: &str) -> Result<Self, Self::Err> {
-                match s {
-                    $(
-                        stringify!($name) => Ok($kpfname::$name),
-                    )+
+            $(
+                #[allow(non_upper_case_globals)]
+                pub const $name : Flags = Flags(1 << $val);
+            )+
 
-                    other => Err(format!("unknown flag: {}", other)),
+            const _SIZE_CHECK: () = if std::mem::size_of::<u64>() != std::mem::size_of::<Flags>() {
+                panic!("KPF size > sizeof(u64)");
+            } else { };
+
+            impl FromStr for Flags {
+                type Err = String;
+
+                fn from_str(s: &str) -> Result<Self, Self::Err> {
+                    match s {
+                        $(
+                            stringify!($name) => Ok($name),
+                        )+
+
+                        other => Err(format!("unknown flag: {}", other)),
+                    }
                 }
             }
-        }
 
-        impl Flaggy for $kpfname {
-            $(const $c: $t = $v;)+
+            impl Flaggy for Flags {
+                $(const $c: $t = $v;)+
 
-            fn valid(val: u64) -> bool {
-                match val {
-                    $($val => true,)*
-                    _ => false,
+                fn empty() -> Self {
+                    Flags(0)
+                }
+
+                fn valid(val: u64) -> bool {
+                    match val {
+                        $($val => true,)*
+                        _ => false,
+                    }
+                }
+
+                fn values() -> &'static [Self] {
+                    &[ $($name),* ]
                 }
             }
 
-            fn values() -> &'static [u64] {
-                &[ $($kpfname::$name as u64),* ]
+            impl From<Flags> for u64 {
+                fn from(kpf: Flags) -> u64 {
+                    kpf.0
+                }
             }
-        }
 
-        impl From<$kpfname> for u64 {
-            fn from(kpf: $kpfname) -> u64 {
-                kpf as u64
+            impl From<u64> for Flags {
+                fn from(val: u64) -> Self {
+                    assert!(Self::valid(val));
+                    unsafe { std::mem::transmute(val) }
+                }
             }
-        }
 
-        impl From<u64> for $kpfname {
-            fn from(val: u64) -> Self {
-                assert!(Self::valid(val));
-                unsafe { std::mem::transmute(val) }
+            impl BitOr for Flags {
+                type Output = Self;
+                fn bitor(self, rhs: Self) -> Self {
+                    (self.0 | rhs.0).into()
+                }
+            }
+
+            impl BitOrAssign for Flags {
+                fn bitor_assign(&mut self, rhs: Self) {
+                    *self = *self | rhs;
+                }
+            }
+
+            impl BitAnd for Flags {
+                type Output = Self;
+                fn bitand(self, rhs: Self) -> Self {
+                    (self.0 & rhs.0).into()
+                }
+            }
+
+            impl BitAndAssign for Flags {
+                fn bitand_assign(&mut self, rhs: Self)  {
+                    *self = *self & rhs;
+                }
+            }
+
+            impl BitXor for Flags {
+                type Output = Self;
+                fn bitxor(self, rhs: Self) -> Self {
+                    (self.0 ^ rhs.0).into()
+                }
+            }
+
+            impl BitXorAssign for Flags {
+                fn bitxor_assign(&mut self, rhs: Self)  {
+                    *self = *self ^ rhs;
+                }
+            }
+
+            impl Not for Flags {
+                type Output = Self;
+                fn not(self) -> Self {
+                    (!self.0).into()
+                }
             }
         }
     };
@@ -101,7 +175,7 @@ macro_rules! kpf {
 
 // kpageflags for kernel 3.10.0
 kpf! {
-    pub enum KPF3_10_0 {
+    KPF3_10_0 {
         Locked = 0,
         Error = 1,
         Referenced = 2,
@@ -144,24 +218,25 @@ kpf! {
         Slubdebug = 51,
     }
 
-    NOPAGE: Self = KPF3_10_0::Nopage;
-    COMPOUND_HEAD: Self = KPF3_10_0::CompoundHead;
-    COMPOUND_TAIL: Self = KPF3_10_0::CompoundTail;
+    NOPAGE: Self = Nopage;
+    COMPOUND_HEAD: Self = CompoundHead;
+    COMPOUND_TAIL: Self = CompoundTail;
     PGTABLE: Option<Self> = None;
-    BUDDY: Self = KPF3_10_0::Buddy;
-    SLAB: Self = KPF3_10_0::Slab;
-    RESERVED: Self = KPF3_10_0::Reserved;
-    MMAP: Self = KPF3_10_0::Mmap;
-    LRU: Self = KPF3_10_0::Lru;
-    ANON: Self = KPF3_10_0::Anon;
-    THP: Self = KPF3_10_0::Thp;
-    PRIVATE: Self = KPF3_10_0::Private;
-    PRIVATE2: Self = KPF3_10_0::Private2;
+    BUDDY: Self = Buddy;
+    SLAB: Self = Slab;
+    RESERVED: Self = Reserved;
+    MMAP: Self = Mmap;
+    LRU: Self = Lru;
+    ANON: Self = Anon;
+    THP: Self = Thp;
+    PRIVATE: Self = Private;
+    PRIVATE2: Self = Private2;
+    OWNERPRIVATE1: Self = OwnerPrivate;
 }
 
 // kpageflags for kernel 4.15.0
 kpf! {
-    pub enum KPF4_15_0 {
+    KPF4_15_0 {
         Locked = 0,
         Error = 1,
         Referenced = 2,
@@ -209,24 +284,25 @@ kpf! {
         MmapExclusive = 63,
     }
 
-    NOPAGE: Self = KPF4_15_0::Nopage;
-    COMPOUND_HEAD: Self = KPF4_15_0::CompoundHead;
-    COMPOUND_TAIL: Self = KPF4_15_0::CompoundTail;
+    NOPAGE: Self = Nopage;
+    COMPOUND_HEAD: Self = CompoundHead;
+    COMPOUND_TAIL: Self = CompoundTail;
     PGTABLE: Option<Self> = None;
-    BUDDY: Self = KPF4_15_0::Buddy;
-    SLAB: Self = KPF4_15_0::Slab;
-    RESERVED: Self = KPF4_15_0::Reserved;
-    MMAP: Self = KPF4_15_0::Mmap;
-    LRU: Self = KPF4_15_0::Lru;
-    ANON: Self = KPF4_15_0::Anon;
-    THP: Self = KPF4_15_0::Thp;
-    PRIVATE: Self = KPF4_15_0::Private;
-    PRIVATE2: Self = KPF4_15_0::Private2;
+    BUDDY: Self = Buddy;
+    SLAB: Self = Slab;
+    RESERVED: Self = Reserved;
+    MMAP: Self = Mmap;
+    LRU: Self = Lru;
+    ANON: Self = Anon;
+    THP: Self = Thp;
+    PRIVATE: Self = Private;
+    PRIVATE2: Self = Private2;
+    OWNERPRIVATE1: Self = OwnerPrivate;
 }
 
 // kpageflags for kernel 5.0.8
 kpf! {
-    pub enum KPF5_0_8 {
+    KPF5_0_8 {
         Locked = 0,
         Error = 1,
         Referenced = 2,
@@ -275,24 +351,25 @@ kpf! {
         MmapExclusive = 63,
     }
 
-    NOPAGE: Self = KPF5_0_8::Nopage;
-    COMPOUND_HEAD: Self = KPF5_0_8::CompoundHead;
-    COMPOUND_TAIL: Self = KPF5_0_8::CompoundTail;
-    PGTABLE: Option<Self> = Some(KPF5_0_8::Pgtable);
-    BUDDY: Self = KPF5_0_8::Buddy;
-    SLAB: Self = KPF5_0_8::Slab;
-    RESERVED: Self = KPF5_0_8::Reserved;
-    MMAP: Self = KPF5_0_8::Mmap;
-    LRU: Self = KPF5_0_8::Lru;
-    ANON: Self = KPF5_0_8::Anon;
-    THP: Self = KPF5_0_8::Thp;
-    PRIVATE: Self = KPF5_0_8::Private;
-    PRIVATE2: Self = KPF5_0_8::Private2;
+    NOPAGE: Self = Nopage;
+    COMPOUND_HEAD: Self = CompoundHead;
+    COMPOUND_TAIL: Self = CompoundTail;
+    PGTABLE: Option<Self> = Some(Pgtable);
+    BUDDY: Self = Buddy;
+    SLAB: Self = Slab;
+    RESERVED: Self = Reserved;
+    MMAP: Self = Mmap;
+    LRU: Self = Lru;
+    ANON: Self = Anon;
+    THP: Self = Thp;
+    PRIVATE: Self = Private;
+    PRIVATE2: Self = Private2;
+    OWNERPRIVATE1: Self = OwnerPrivate;
 }
 
 // kpageflags for kernel 5.4.0
 kpf! {
-    pub enum KPF5_4_0 {
+    KPF5_4_0 {
         Locked = 0,
         Error = 1,
         Referenced = 2,
@@ -341,24 +418,25 @@ kpf! {
         MmapExclusive = 63,
     }
 
-    NOPAGE: Self = KPF5_4_0::Nopage;
-    COMPOUND_HEAD: Self = KPF5_4_0::CompoundHead;
-    COMPOUND_TAIL: Self = KPF5_4_0::CompoundTail;
-    PGTABLE: Option<Self> = Some(KPF5_4_0::Pgtable);
-    BUDDY: Self = KPF5_4_0::Buddy;
-    SLAB: Self = KPF5_4_0::Slab;
-    RESERVED: Self = KPF5_4_0::Reserved;
-    MMAP: Self = KPF5_4_0::Mmap;
-    LRU: Self = KPF5_4_0::Lru;
-    ANON: Self = KPF5_4_0::Anon;
-    THP: Self = KPF5_4_0::Thp;
-    PRIVATE: Self = KPF5_4_0::Private;
-    PRIVATE2: Self = KPF5_4_0::Private2;
+    NOPAGE: Self = Nopage;
+    COMPOUND_HEAD: Self = CompoundHead;
+    COMPOUND_TAIL: Self = CompoundTail;
+    PGTABLE: Option<Self> = Some(Pgtable);
+    BUDDY: Self = Buddy;
+    SLAB: Self = Slab;
+    RESERVED: Self = Reserved;
+    MMAP: Self = Mmap;
+    LRU: Self = Lru;
+    ANON: Self = Anon;
+    THP: Self = Thp;
+    PRIVATE: Self = Private;
+    PRIVATE2: Self = Private2;
+    OWNERPRIVATE1: Self = OwnerPrivate;
 }
 
 // kpageflags for kernel 5.13.0
 kpf! {
-    pub enum KPF5_13_0 {
+    KPF5_13_0 {
         Locked = 0,
         Error = 1,
         Referenced = 2,
@@ -408,24 +486,25 @@ kpf! {
         MmapExclusive = 63,
     }
 
-    NOPAGE: Self = KPF5_13_0::Nopage;
-    COMPOUND_HEAD: Self = KPF5_13_0::CompoundHead;
-    COMPOUND_TAIL: Self = KPF5_13_0::CompoundTail;
-    PGTABLE: Option<Self> = Some(KPF5_13_0::Pgtable);
-    BUDDY: Self = KPF5_13_0::Buddy;
-    SLAB: Self = KPF5_13_0::Slab;
-    RESERVED: Self = KPF5_13_0::Reserved;
-    MMAP: Self = KPF5_13_0::Mmap;
-    LRU: Self = KPF5_13_0::Lru;
-    ANON: Self = KPF5_13_0::Anon;
-    THP: Self = KPF5_13_0::Thp;
-    PRIVATE: Self = KPF5_13_0::Private;
-    PRIVATE2: Self = KPF5_13_0::Private2;
+    NOPAGE: Self = Nopage;
+    COMPOUND_HEAD: Self = CompoundHead;
+    COMPOUND_TAIL: Self = CompoundTail;
+    PGTABLE: Option<Self> = Some(Pgtable);
+    BUDDY: Self = Buddy;
+    SLAB: Self = Slab;
+    RESERVED: Self = Reserved;
+    MMAP: Self = Mmap;
+    LRU: Self = Lru;
+    ANON: Self = Anon;
+    THP: Self = Thp;
+    PRIVATE: Self = Private;
+    PRIVATE2: Self = Private2;
+    OWNERPRIVATE1: Self = OwnerPrivate;
 }
 
 // kpageflags for kernel 5.15.0
 kpf! {
-    pub enum KPF5_15_0 {
+    KPF5_15_0 {
         Locked = 0,
         Error = 1,
         Referenced = 2,
@@ -475,24 +554,25 @@ kpf! {
         MmapExclusive = 63,
     }
 
-    NOPAGE: Self = KPF5_15_0::Nopage;
-    COMPOUND_HEAD: Self = KPF5_15_0::CompoundHead;
-    COMPOUND_TAIL: Self = KPF5_15_0::CompoundTail;
-    PGTABLE: Option<Self> = Some(KPF5_15_0::Pgtable);
-    BUDDY: Self = KPF5_15_0::Buddy;
-    SLAB: Self = KPF5_15_0::Slab;
-    RESERVED: Self = KPF5_15_0::Reserved;
-    MMAP: Self = KPF5_15_0::Mmap;
-    LRU: Self = KPF5_15_0::Lru;
-    ANON: Self = KPF5_15_0::Anon;
-    THP: Self = KPF5_15_0::Thp;
-    PRIVATE: Self = KPF5_15_0::Private;
-    PRIVATE2: Self = KPF5_15_0::Private2;
+    NOPAGE: Self = Nopage;
+    COMPOUND_HEAD: Self = CompoundHead;
+    COMPOUND_TAIL: Self = CompoundTail;
+    PGTABLE: Option<Self> = Some(Pgtable);
+    BUDDY: Self = Buddy;
+    SLAB: Self = Slab;
+    RESERVED: Self = Reserved;
+    MMAP: Self = Mmap;
+    LRU: Self = Lru;
+    ANON: Self = Anon;
+    THP: Self = Thp;
+    PRIVATE: Self = Private;
+    PRIVATE2: Self = Private2;
+    OWNERPRIVATE1: Self = OwnerPrivate;
 }
 
 // kpageflags for kernel 5.17.0
 kpf! {
-    pub enum KPF5_17_0 {
+    KPF5_17_0 {
         Locked = 0,
         Error = 1,
         Referenced = 2,
@@ -542,17 +622,18 @@ kpf! {
         MmapExclusive = 63,
     }
 
-    NOPAGE: Self = KPF5_17_0::Nopage;
-    COMPOUND_HEAD: Self = KPF5_17_0::CompoundHead;
-    COMPOUND_TAIL: Self = KPF5_17_0::CompoundTail;
-    PGTABLE: Option<Self> = Some(KPF5_17_0::Pgtable);
-    BUDDY: Self = KPF5_17_0::Buddy;
-    SLAB: Self = KPF5_17_0::Slab;
-    RESERVED: Self = KPF5_17_0::Reserved;
-    MMAP: Self = KPF5_17_0::Mmap;
-    LRU: Self = KPF5_17_0::Lru;
-    ANON: Self = KPF5_17_0::Anon;
-    THP: Self = KPF5_17_0::Thp;
-    PRIVATE: Self = KPF5_17_0::Private;
-    PRIVATE2: Self = KPF5_17_0::Private2;
+    NOPAGE: Self = Nopage;
+    COMPOUND_HEAD: Self = CompoundHead;
+    COMPOUND_TAIL: Self = CompoundTail;
+    PGTABLE: Option<Self> = Some(Pgtable);
+    BUDDY: Self = Buddy;
+    SLAB: Self = Slab;
+    RESERVED: Self = Reserved;
+    MMAP: Self = Mmap;
+    LRU: Self = Lru;
+    ANON: Self = Anon;
+    THP: Self = Thp;
+    PRIVATE: Self = Private;
+    PRIVATE2: Self = Private2;
+    OWNERPRIVATE1: Self = OwnerPrivate;
 }

@@ -10,6 +10,7 @@ pub mod pagemap;
 
 /// Indicates that the implementing type can be cast directly from the contents of a file.
 ///
+/// # Safety
 /// The trait is `unsafe` because the implementor needs to guarantee that such a cast doesn't cause
 /// UB.
 pub unsafe trait FileReadable {}
@@ -57,9 +58,7 @@ impl<R: Read, T: FileReadable> FileReadableReader<R, T> {
                 // Doesn't contain enough data for even one flag.
                 len if len < size => {
                     // Copy what we have...
-                    for i in 0..len {
-                        buf[i] = filled_buf[i];
-                    }
+                    buf[..len].copy_from_slice(&filled_buf[..len]);
 
                     // ... and refill.
                     self.reader.consume(len);
@@ -77,9 +76,7 @@ impl<R: Read, T: FileReadable> FileReadableReader<R, T> {
                     // We account for any partially read flags from previous iterations...
                     let bytes_to_copy = complete_flags * size - (total_bytes_read % size);
 
-                    for i in 0..bytes_to_copy {
-                        buf[i] = filled_buf[i];
-                    }
+                    buf[..bytes_to_copy].copy_from_slice(&filled_buf[..bytes_to_copy]);
                     total_bytes_read += bytes_to_copy;
 
                     // Tell the `BufReader` how much we consumed.
