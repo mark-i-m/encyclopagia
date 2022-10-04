@@ -42,7 +42,6 @@ pub trait Flaggy:
     const OWNERPRIVATE1: Self;
 
     fn empty() -> Self;
-    fn valid(val: u64) -> bool;
     fn values() -> &'static [Self];
 
     fn valid_mask() -> Self {
@@ -96,11 +95,6 @@ macro_rules! kpf {
                     Flags(0)
                 }
 
-                fn valid(val: u64) -> bool {
-                    $( if val == (1 << $val) { return true ; } )*
-                    false
-                }
-
                 fn values() -> &'static [Self] {
                     &[ $($name),* ]
                 }
@@ -114,7 +108,7 @@ macro_rules! kpf {
 
             impl From<u64> for Flags {
                 fn from(val: u64) -> Self {
-                    assert!(Self::valid(val));
+                    assert_eq!(Self::valid_mask().0 & val, val);
                     unsafe { std::mem::transmute(val) }
                 }
             }
@@ -122,7 +116,7 @@ macro_rules! kpf {
             impl BitOr for Flags {
                 type Output = Self;
                 fn bitor(self, rhs: Self) -> Self {
-                    (self.0 | rhs.0).into()
+                    Flags(self.0 | rhs.0)
                 }
             }
 
@@ -135,7 +129,7 @@ macro_rules! kpf {
             impl BitAnd for Flags {
                 type Output = Self;
                 fn bitand(self, rhs: Self) -> Self {
-                    (self.0 & rhs.0).into()
+                    Flags(self.0 & rhs.0)
                 }
             }
 
@@ -148,7 +142,7 @@ macro_rules! kpf {
             impl BitXor for Flags {
                 type Output = Self;
                 fn bitxor(self, rhs: Self) -> Self {
-                    (self.0 ^ rhs.0).into()
+                    Flags(self.0 ^ rhs.0)
                 }
             }
 
@@ -161,7 +155,7 @@ macro_rules! kpf {
             impl Not for Flags {
                 type Output = Self;
                 fn not(self) -> Self {
-                    (!self.0).into()
+                    Flags(!self.0)
                 }
             }
         }
