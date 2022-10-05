@@ -61,7 +61,7 @@ macro_rules! kpf {
             use crate::kpageflags::Flaggy;
 
             #[allow(dead_code)]
-            #[derive(Copy, Clone, Debug, Hash, PartialEq, PartialOrd, Eq, Ord)]
+            #[derive(Copy, Clone, Hash, PartialEq, PartialOrd, Eq, Ord)]
             #[repr(transparent)]
             pub struct Flags (u64);
 
@@ -110,6 +110,18 @@ macro_rules! kpf {
                 fn from(val: u64) -> Self {
                     assert_eq!(Self::valid_mask().0 & val, val);
                     unsafe { std::mem::transmute(val) }
+                }
+            }
+
+            impl std::fmt::Debug for Flags {
+                fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                    $(
+                        if $name & *self != Self::empty() {
+                            write!(f, "{} ", stringify!($name))?;
+                        }
+                    )+
+
+                    Ok(())
                 }
             }
 
