@@ -629,3 +629,72 @@ kpf! {
     PRIVATE2: Self = Private2;
     OWNERPRIVATE1: Self = OwnerPrivate;
 }
+
+// kpageflags for kernel 6.0.0
+kpf! {
+    KPF6_0_0 {
+        Locked = 0,
+        Error = 1,
+        Referenced = 2,
+        Uptodate = 3,
+        Dirty = 4,
+        Lru = 5,
+        Active = 6,
+        Slab = 7,
+        Writeback = 8,
+        Reclaim = 9,
+        Buddy = 10,
+        Mmap = 11,
+        Anon = 12,
+        Swapcache = 13,
+        Swapbacked = 14,
+        CompoundHead = 15,
+        CompoundTail = 16,
+        Huge = 17,
+        Unevictable = 18,
+        Hwpoison = 19,
+        Nopage = 20,
+        Ksm = 21,
+        Thp = 22,
+        Offline = 23,
+        ZeroPage = 24,
+        Idle = 25,
+        Pgtable = 26,
+
+        Reserved = 32,
+        Mlocked = 33,
+        Mappedtodisk = 34,
+        Private = 35,
+        Private2 = 36,
+        OwnerPrivate = 37,
+        Arch = 38,
+        Uncached = 39,
+        Softdirty = 40,
+        Arch2 = 41,
+
+        AnonExclusive = 47,
+        Readahead = 48,
+        Slobfree = 49,
+        Slubfrozen = 50,
+        Slubdebug = 51,
+
+        File = 61,
+        Swap = 62,
+        MmapExclusive = 63,
+    }
+
+    NOPAGE: Self = Nopage;
+    COMPOUND_HEAD: Self = CompoundHead;
+    COMPOUND_TAIL: Self = CompoundTail;
+    PGTABLE: Option<Self> = Some(Pgtable);
+    BUDDY: Self = Buddy;
+    SLAB: Self = Slab;
+    RESERVED: Self = Reserved;
+    MMAP: Self = Mmap;
+    LRU: Self = Lru;
+    ANON: Self = Anon;
+    THP: Self = Thp;
+    PRIVATE: Self = Private;
+    PRIVATE2: Self = Private2;
+    OWNERPRIVATE1: Self = OwnerPrivate;
+}
