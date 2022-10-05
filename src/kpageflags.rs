@@ -6,7 +6,7 @@ mod read;
 use std::ops::{BitOr, BitOrAssign};
 
 pub use flags::{
-    Flaggy, KPF3_10_0, KPF4_15_0, KPF5_0_8, KPF5_13_0, KPF5_15_0, KPF5_17_0, KPF5_4_0,
+    Flaggy, KPF3_10_0, KPF4_15_0, KPF5_0_8, KPF5_13_0, KPF5_15_0, KPF5_17_0, KPF5_4_0, KPF6_0_0,
 };
 pub use read::{KPageFlagsIterator, KPageFlagsReader};
 
