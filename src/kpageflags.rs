@@ -33,7 +33,7 @@ impl<K: Flaggy> KPageFlags<K> {
 
     /// Returns `true` if any bits in the given mask are set and `false` if all bits are not set.
     pub fn any(&self, mask: K) -> bool {
-        self.0 & mask == mask
+        self.0 & mask != K::empty()
     }
 
     /// Returns `true` if _consecutive_ regions with flags `first` and then `second` can be
